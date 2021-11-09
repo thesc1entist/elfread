@@ -40,47 +40,6 @@ read_file_into_mem(const char* filename, void** data_out, size_t* size_out);
 int
 write_mem_to_file(const char* filename, const void* data, size_t size);
 
-/*
-ELF Header:
-  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
-  Class:                             ELF64
-  Data:                              2's complement, little endian
-  Version:                           1 (current)
-  OS/ABI:                            UNIX - System V
-  ABI Version:                       0
-  Type:                              DYN (Position-Independent Executable file)
-  Machine:                           Advanced Micro Devices X86-64
-  Version:                           0x1
-  Entry point address:               0x6180
-  Start of program headers:          64 (bytes into file)
-  Start of section headers:          145256 (bytes into file)
-  Flags:                             0x0
-  Size of this header:               64 (bytes)
-  Size of program headers:           56 (bytes)
-  Number of program headers:         11
-  Size of section headers:           64 (bytes)
-  Number of section headers:         30
-  Section header string table index: 29
-*/
-
-// typedef struct
-// {
-//   unsigned char	e_ident[EI_NIDENT];	/* Magic number and other info */
-//   Elf64_Half	e_type;			/* Object file type */
-//   Elf64_Half	e_machine;		/* Architecture */
-//   Elf64_Word	e_version;		/* Object file version */
-//   Elf64_Addr	e_entry;		/* Entry point virtual address */
-//   Elf64_Off	e_phoff;		/* Program header table file offset */
-//   Elf64_Off	e_shoff;		/* Section header table file offset */
-//   Elf64_Word	e_flags;		/* Processor-specific flags */
-//   Elf64_Half	e_ehsize;		/* ELF header size in bytes */
-//   Elf64_Half	e_phentsize;		/* Program header table entry size */
-//   Elf64_Half	e_phnum;		/* Program header table entry count */
-//   Elf64_Half	e_shentsize;		/* Section header table entry size */
-//   Elf64_Half	e_shnum;		/* Section header table entry count */
-//   Elf64_Half	e_shstrndx;		/* Section header string table index */
-// } Elf64_Ehdr;
-
 int
 main(int argc, char** argv)
 {
@@ -108,6 +67,21 @@ main(int argc, char** argv)
                 "Current version"
         };
 
+        const char* elf_osabi[] = {
+                "UNIX System V ABI",
+                "HP-UX",
+                "NetBSD.",
+                "Object uses GNU ELF extensions",
+                "Sun Solaris",
+                "IBM AIX",
+                "SGI Irix",
+                "FreeBSD",
+                "Compaq TRU64 UNIX",
+                "Novell Modesto",
+                "OpenBSD",
+                "Standalone (embedded) application"
+        };
+
         read_file_into_mem("/bin/ls", (void**)&data, &datasz);
         memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
         if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
@@ -132,6 +106,11 @@ main(int argc, char** argv)
                 ehdr.e_version = EV_NONE;
         }
 
+        if (ehdr.e_ident[EI_OSABI] >= ELFOSABI_SOLARIS && ehdr.e_ident[EI_OSABI] <= ELFOSABI_OPENBSD)
+                ehdr.e_ident[EI_OSABI] -= 2;
+        else if (ehdr.e_ident[EI_OSABI] >= ELFOSABI_ARM_AEABI)
+                ehdr.e_ident[EI_OSABI] = (sizeof(elf_osabi) / sizeof(elf_osabi[0])) - 1;
+
         printf(
                 "ELF Header:\n"
                 "  Magic:   "
@@ -143,8 +122,8 @@ main(int argc, char** argv)
                 "  Class:                               %s\n"
                 "  Data:                                %s\n"
                 "  Version:                             %d(%s)\n"
-                "  OS/ABI:                              \n"
-                "  ABI Version:                         \n"
+                "  OS/ABI:                              %s\n"
+                "  ABI Version:                         %d\n"
                 "  Type:                                \n"
                 "  Machine:                             \n"
                 "  Version:                             \n"
@@ -160,11 +139,12 @@ main(int argc, char** argv)
                 "  Section header string table index:   \n",
                 elf_class[ehdr.e_type],
                 elf_data[ehdr.e_machine],
-                ehdr.e_version, elf_version[ehdr.e_version]
+                ehdr.e_version, elf_version[ehdr.e_version],
+                elf_osabi[ehdr.e_ident[EI_OSABI]],
+                ehdr.e_ident[EI_ABIVERSION]
         );
 
         free(data);
-
         if (status == false)
                 err_exit("* bad ELF");
 
