@@ -40,31 +40,27 @@ main(int argc, char** argv)
 {
         uint8_t* data;
         const char* e_typeptr;
+        unsigned char elf_ei_osabi, elf_ei_data, elf_ei_class;
         int magic_flag;
         size_t datasz;
         Elf64_Ehdr ehdr;
-        Elf64_Half e_type;
-        Elf64_Word e_version;
+        Elf64_Half elf_e_type;
+        Elf64_Word elf_e_version;
         bool status;
 
-        const char* elf_class[ELFCLASSNUM] = {
+        const char* elf_class_id[ELFCLASSNUM] = {
                 "NONE",
                 "ELF32",
                 "ELF64"
         };
 
-        const char* elf_data[ELFDATANUM] = {
+        const char* elf_data_id[ELFDATANUM] = {
                 "Invalid data encoding",
                 "2's complement, little endian",
                 "2's complement, big endian"
         };
 
-        const char* elf_version[EV_NUM] = {
-                "Invalid ELF version",
-                "Current version"
-        };
-
-        const char* elf_osabi[] = {
+        const char* elf_osabi_id[] = {
                 "UNIX System V ABI",
                 "HP-UX",
                 "NetBSD.",
@@ -79,7 +75,7 @@ main(int argc, char** argv)
                 "Standalone (embedded) application"
         };
 
-        const char* elf_e_type[] = {
+        const char* elf_e_type_id[] = {
                 "NONE No file type",
                 "REL Relocatable file",
                 "EXEC Executable file",
@@ -90,7 +86,7 @@ main(int argc, char** argv)
                 "Processor-specific range"
         };
 
-        const char* elf_e_machine[EM_NUM] = {
+        const char* elf_e_machine_id[EM_NUM] = {
                 "No machine",
                 "AT&T WE 32100",
                 "SUN SPARC",
@@ -242,7 +238,7 @@ main(int argc, char** argv)
                 "Freescale 56800EX DSC",
                 "Beyond BA1","Beyond BA2",
                 "XMOS xCORE",
-                "Microchip 8-bit PIC(r)",
+                "Mielf_e_versioncrochip 8-bit PIC(r)",
                 "reserved", "reserved", "reserved", "reserved", "reserved",
                 "KM211 KM32","KM211 KMX32","KM211 KMX16","KM211 KMX8","KM211 KVARC",
                 "Paneve CDP",
@@ -266,7 +262,7 @@ main(int argc, char** argv)
                 "C-SKY"
         };
 
-        const char* elf_e_version[EV_NUM] = {
+        const char* elf_e_version_id[EV_NUM] = {
                 "Invalid ELF version",
                 "Current version"
         };
@@ -276,36 +272,29 @@ main(int argc, char** argv)
         if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
                 err_exit("* Not an ELFMAG");
 
-        status = true;
-        if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64) {
-                status = false;
-                ehdr.e_ident[EI_CLASS] = ELFCLASSNONE;
-        }
+        elf_ei_class = ehdr.e_ident[EI_CLASS];
+        if (elf_ei_class < ELFCLASS32 || elf_ei_class > ELFCLASS64)
+                elf_ei_class = ELFCLASSNONE;
 
-        if (ehdr.e_ident[EI_DATA] < ELFDATA2LSB || ehdr.e_ident[EI_DATA] > ELFDATA2MSB) {
-                status = false;
-                ehdr.e_ident[EI_DATA] = ELFDATANONE;
-        }
+        elf_ei_data = ehdr.e_ident[EI_DATA];
+        if (elf_ei_data < ELFDATA2LSB || elf_ei_data > ELFDATA2MSB)
+                elf_ei_data = ELFDATANONE;
 
-        if (ehdr.e_ident[EI_VERSION] != EV_CURRENT) {
-                status = false;
-                ehdr.e_ident[EI_VERSION] = EV_NONE;
-        }
+        elf_ei_osabi = ehdr.e_ident[EI_OSABI];
+        if (elf_ei_osabi >= ELFOSABI_SOLARIS && elf_ei_osabi <= ELFOSABI_OPENBSD)
+                elf_ei_osabi -= 2;
+        else if (elf_ei_osabi >= ELFOSABI_ARM_AEABI)
+                elf_ei_osabi = (sizeof(elf_osabi_id) / sizeof(elf_osabi_id[0])) - 1;
 
-        if (ehdr.e_ident[EI_OSABI] >= ELFOSABI_SOLARIS && ehdr.e_ident[EI_OSABI] <= ELFOSABI_OPENBSD)
-                ehdr.e_ident[EI_OSABI] -= 2;
-        else if (ehdr.e_ident[EI_OSABI] >= ELFOSABI_ARM_AEABI)
-                ehdr.e_ident[EI_OSABI] = (sizeof(elf_osabi) / sizeof(elf_osabi[0])) - 1;
+        elf_e_type = ehdr.e_type;
+        if (elf_e_type > 5 && elf_e_type < ET_LOOS)
+                elf_e_type = ET_NONE;
+        else if (elf_e_type >= ET_LOOS && elf_e_type <= ET_HIOS)
+                elf_e_type = INDEX_ET_OS;
+        else if (elf_e_type >= ET_HIOS && elf_e_type <= ET_LOPROC)
+                elf_e_type = INDEX_ET_PROC;
 
-        e_type = ehdr.e_type;
-        if (e_type > 5 && e_type < ET_LOOS)
-                e_type = ET_NONE;
-        else if (e_type >= ET_LOOS && e_type <= ET_HIOS)
-                e_type = INDEX_ET_OS;
-        else if (e_type >= ET_HIOS && e_type <= ET_LOPROC)
-                e_type = INDEX_ET_PROC;
-
-        e_version = ehdr.e_version != EV_CURRENT ? EV_NONE : ehdr.e_version;
+        elf_e_version = ehdr.e_version != EV_CURRENT ? EV_NONE : ehdr.e_version;
 
         printf(
                 "ELF Header:\n"
@@ -317,7 +306,7 @@ main(int argc, char** argv)
         printf(
                 "  Class:                               %s\n"
                 "  Data:                                %s\n"
-                "  Version:                             %d(%s)\n"
+                "  Version:                             %d\n"
                 "  OS/ABI:                              %s\n"
                 "  ABI Version:                         %d\n"
                 "  Type:                                %s\n"
@@ -333,18 +322,18 @@ main(int argc, char** argv)
                 "  Size of section headers:             \n"
                 "  Number of section headers:           \n"
                 "  Section header string table index:   \n",
-                elf_class[ehdr.e_ident[EI_CLASS]],
-                elf_data[ehdr.e_ident[EI_DATA]],
-                ehdr.e_ident[EI_VERSION], elf_version[ehdr.e_ident[EI_VERSION]],
-                elf_osabi[ehdr.e_ident[EI_OSABI]],
+                elf_class_id[elf_ei_class],
+                elf_data_id[elf_ei_data],
+                ehdr.e_ident[EI_VERSION],
+                elf_osabi_id[elf_ei_osabi],
                 ehdr.e_ident[EI_ABIVERSION], // Further specifies the ABI version.
                                              // Its interpretation depends on the target ABI.
                                              // Linux kernel (after at least 2.6) has no definition of it,
                                              // so it is ignored for statically-linked executables.
                                              // In that case, offset and size of EI_PAD are 8.
-                elf_e_type[e_type],
-                ehdr.e_machine >= EM_NUM ? "special\n" : elf_e_machine[ehdr.e_machine],
-                ehdr.e_version, elf_e_version[e_version]
+                elf_e_type_id[elf_e_type],
+                ehdr.e_machine >= EM_NUM ? "special\n" : elf_e_machine_id[ehdr.e_machine],
+                ehdr.e_version, elf_e_version_id[elf_e_version]
         );
 
         free(data);
