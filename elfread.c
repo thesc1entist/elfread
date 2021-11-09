@@ -1,8 +1,8 @@
 /* elfread.c
  * the-scientist@rootstorm.com
  * spl0its-r-us security
- * 
- * 100% of the proceeds that wind up in these accounts will be donated to animal shelters.  
+ *
+ * 100% of the proceeds that wind up in these accounts will be donated to animal shelters.
  * ================================================================================================================
  * BITCOIN: bc1qc0x6qdsk7auhsrym6vz0rtafnl2qgqjk7yy3tn
  * ETHEREUM: 0x482d85E39Ce865Dcf7c26bFDD6e52AB203d0f555
@@ -31,33 +31,106 @@
 #include <elf.h>
 #include <string.h> // memset
 
+#define         err_exit(msg) do { perror(msg); \
+                        exit(EXIT_FAILURE); \
+                        } while (0);
 int
 read_file_into_mem(const char* filename, void** data_out, size_t* size_out);
 int
 write_mem_to_file(const char* filename, const void* data, size_t size);
 
+/*
+ELF Header:
+  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00
+  Class:                             ELF64
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Position-Independent Executable file)
+  Machine:                           Advanced Micro Devices X86-64
+  Version:                           0x1
+  Entry point address:               0x6180
+  Start of program headers:          64 (bytes into file)
+  Start of section headers:          145256 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               64 (bytes)
+  Size of program headers:           56 (bytes)
+  Number of program headers:         11
+  Size of section headers:           64 (bytes)
+  Number of section headers:         30
+  Section header string table index: 29
+*/
+
+// typedef struct
+// {
+//   unsigned char	e_ident[EI_NIDENT];	/* Magic number and other info */
+//   Elf64_Half	e_type;			/* Object file type */
+//   Elf64_Half	e_machine;		/* Architecture */
+//   Elf64_Word	e_version;		/* Object file version */
+//   Elf64_Addr	e_entry;		/* Entry point virtual address */
+//   Elf64_Off	e_phoff;		/* Program header table file offset */
+//   Elf64_Off	e_shoff;		/* Section header table file offset */
+//   Elf64_Word	e_flags;		/* Processor-specific flags */
+//   Elf64_Half	e_ehsize;		/* ELF header size in bytes */
+//   Elf64_Half	e_phentsize;		/* Program header table entry size */
+//   Elf64_Half	e_phnum;		/* Program header table entry count */
+//   Elf64_Half	e_shentsize;		/* Section header table entry size */
+//   Elf64_Half	e_shnum;		/* Section header table entry count */
+//   Elf64_Half	e_shstrndx;		/* Section header string table index */
+// } Elf64_Ehdr;
+
 int
 main(int argc, char** argv)
 {
         uint8_t* data;
+
         int magic_flag;
         size_t datasz;
         Elf64_Ehdr ehdr;
-        Elf64_Word magic;
         Elf64_Half e_type;
+        char* ei_class[ELFCLASSNUM] = {
+                "NONE",
+                "ELF32",
+                "ELF64"
+        };
 
         read_file_into_mem("/bin/ls", (void**)&data, &datasz);
-
         memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
+        if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
+                err_exit("* Not an ELFMAG");
 
-        magic_flag = strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG);
-        if (magic_flag == 0)
-                printf("%s\n", ELFMAG + 1);
-        else
-                puts("Other");
+        if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64)
+                err_exit("* Not a valid ELFCLASS");
 
-        e_type = ehdr.e_ident[EI_CLASS];
-
+        printf(
+                "ELF Header:\n"
+                "  Magic:   "
+        );
+        for (int i = 0; i < EI_NIDENT; i++)
+                printf("%.2x ", ehdr.e_ident[i]);
+        putchar('\n');
+        printf(
+                "  Class:                             %s\n"
+                "  Data:                                \n"
+                "  Version:                             \n"
+                "  OS/ABI:                              \n"
+                "  ABI Version:                         \n"
+                "  Type:                                \n"
+                "  Machine:                             \n"
+                "  Version:                             \n"
+                "  Entry point address:                 \n"
+                "  Start of program headers:            \n"
+                "  Start of section headers:            \n"
+                "  Flags:                               \n"
+                "  Size of this header:                 \n"
+                "  Size of program headers:             \n"
+                "  Number of program headers:           \n"
+                "  Size of section headers:             \n"
+                "  Number of section headers:           \n"
+                "  Section header string table index:   \n",
+                ei_class[ehdr.e_ident[EI_CLASS]]
+        );
 
         return 0;
 }
