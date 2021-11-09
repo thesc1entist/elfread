@@ -26,6 +26,10 @@
 #define         err_exit(msg) do { perror(msg); \
                         exit(EXIT_FAILURE); \
                         } while (0);
+
+#define         INDEX_ET_OS 6	
+#define         INDEX_ET_PROC 7
+
 int
 read_file_into_mem(const char* filename, void** data_out, size_t* size_out);
 int
@@ -35,6 +39,7 @@ int
 main(int argc, char** argv)
 {
         uint8_t* data;
+        const char* e_typeptr;
         int magic_flag;
         size_t datasz;
         Elf64_Ehdr ehdr;
@@ -73,12 +78,24 @@ main(int argc, char** argv)
                 "Standalone (embedded) application"
         };
 
+        const char* elf_e_type[] = {
+                "NONE No file type",
+                "REL Relocatable file",
+                "EXEC Executable file",
+                "DYN Shared object file",
+                "CORE Core file",
+                "NUM Number of defined types",
+                "OS-specific range",
+                "Processor-specific range"
+        };
+
         read_file_into_mem("/bin/ls", (void**)&data, &datasz);
         memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
         if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
                 err_exit("* Not an ELFMAG");
 
         status = true;
+        ehdr.e_ident[EI_CLASS] = -1; 
         if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64) {
                 status = false;
                 ehdr.e_ident[EI_CLASS] = ELFCLASSNONE;
@@ -99,6 +116,14 @@ main(int argc, char** argv)
         else if (ehdr.e_ident[EI_OSABI] >= ELFOSABI_ARM_AEABI)
                 ehdr.e_ident[EI_OSABI] = (sizeof(elf_osabi) / sizeof(elf_osabi[0])) - 1;
 
+        e_type = ehdr.e_type;
+        if (e_type > 5 && e_type < ET_LOOS)
+                e_type = ET_NONE;
+        else if (e_type >= ET_LOOS && e_type <= ET_HIOS)
+                e_type = INDEX_ET_OS;
+        else if (e_type >= ET_HIOS && e_type <= ET_LOPROC)
+                e_type = INDEX_ET_PROC;
+
         printf(
                 "ELF Header:\n"
                 "  Magic:   "
@@ -112,7 +137,7 @@ main(int argc, char** argv)
                 "  Version:                             %d(%s)\n"
                 "  OS/ABI:                              %s\n"
                 "  ABI Version:                         %d\n"
-                "  Type:                                \n"
+                "  Type:                                %s\n"
                 "  Machine:                             \n"
                 "  Version:                             \n"
                 "  Entry point address:                 \n"
@@ -129,7 +154,12 @@ main(int argc, char** argv)
                 elf_data[ehdr.e_ident[EI_DATA]],
                 ehdr.e_version, elf_version[ehdr.e_ident[EI_VERSION]],
                 elf_osabi[ehdr.e_ident[EI_OSABI]],
-                ehdr.e_ident[EI_ABIVERSION]
+                ehdr.e_ident[EI_ABIVERSION], // Further specifies the ABI version.
+                                             // Its interpretation depends on the target ABI.
+                                             // Linux kernel (after at least 2.6) has no definition of it,
+                                             // so it is ignored for statically-linked executables.
+                                             // In that case, offset and size of EI_PAD are 8.
+                elf_e_type[e_type]
         );
 
         free(data);
