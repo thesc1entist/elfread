@@ -335,7 +335,7 @@ main(int argc, char** argv)
                 "  Section header string table index:   \n",
                 elf_class[ehdr.e_ident[EI_CLASS]],
                 elf_data[ehdr.e_ident[EI_DATA]],
-                ehdr.e_version, elf_version[ehdr.e_ident[EI_VERSION]],
+                ehdr.e_ident[EI_VERSION], elf_version[ehdr.e_ident[EI_VERSION]],
                 elf_osabi[ehdr.e_ident[EI_OSABI]],
                 ehdr.e_ident[EI_ABIVERSION], // Further specifies the ABI version.
                                              // Its interpretation depends on the target ABI.
