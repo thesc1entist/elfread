@@ -85,22 +85,27 @@ int
 main(int argc, char** argv)
 {
         uint8_t* data;
-
         int magic_flag;
         size_t datasz;
         Elf64_Ehdr ehdr;
         Elf64_Half e_type;
         bool status;
 
-        char* ei_class[ELFCLASSNUM] = {
+        const char* elf_class[ELFCLASSNUM] = {
                 "NONE",
                 "ELF32",
                 "ELF64"
         };
-        char* ei_data[ELFDATANUM] = {
+
+        const char* elf_data[ELFDATANUM] = {
                 "Invalid data encoding",
                 "2's complement, little endian",
                 "2's complement, big endian"
+        };
+
+        const char* elf_version[EV_NUM] = {
+                "Invalid ELF version",
+                "Current version"
         };
 
         read_file_into_mem("/bin/ls", (void**)&data, &datasz);
@@ -109,14 +114,22 @@ main(int argc, char** argv)
                 err_exit("* Not an ELFMAG");
 
         status = true;
-        if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64) {
+        ehdr.e_type = ehdr.e_ident[EI_CLASS];
+        if (ehdr.e_type < ELFCLASS32 || ehdr.e_type > ELFCLASS64) {
                 status = false;
-                ehdr.e_ident[EI_CLASS] = ELFCLASSNONE;
+                ehdr.e_type = ELFCLASSNONE;
         }
 
-        if (ehdr.e_ident[EI_DATA] < ELFDATA2LSB || ehdr.e_ident[EI_CLASS] > ELFDATA2MSB) {
+        ehdr.e_machine = ehdr.e_ident[EI_DATA];
+        if (ehdr.e_machine < ELFDATA2LSB || ehdr.e_machine > ELFDATA2MSB) {
                 status = false;
-                ehdr.e_ident[EI_DATA] = ELFDATANONE;
+                ehdr.e_machine = ELFDATANONE;
+        }
+
+        ehdr.e_version = ehdr.e_ident[EI_VERSION];
+        if (ehdr.e_version != EV_CURRENT) {
+                status = false;
+                ehdr.e_version = EV_NONE;
         }
 
         printf(
@@ -127,9 +140,9 @@ main(int argc, char** argv)
                 printf("%.2x ", ehdr.e_ident[i]);
         putchar('\n');
         printf(
-                "  Class:                             %s\n"
-                "  Data:                              %s\n"
-                "  Version:                             \n"
+                "  Class:                               %s\n"
+                "  Data:                                %s\n"
+                "  Version:                             %d(%s)\n"
                 "  OS/ABI:                              \n"
                 "  ABI Version:                         \n"
                 "  Type:                                \n"
@@ -145,11 +158,16 @@ main(int argc, char** argv)
                 "  Size of section headers:             \n"
                 "  Number of section headers:           \n"
                 "  Section header string table index:   \n",
-                ei_class[ehdr.e_ident[EI_CLASS]],
-                ei_data[ehdr.e_ident[EI_DATA]]
+                elf_class[ehdr.e_type],
+                elf_data[ehdr.e_machine],
+                ehdr.e_version, elf_version[ehdr.e_version]
         );
 
         free(data);
+
+        if (status == false)
+                err_exit("* bad ELF");
+
         return 0;
 }
 
