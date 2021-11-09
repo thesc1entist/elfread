@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <elf.h>
 #include <string.h> // memset
+#include <stdbool.h>
 
 #define         err_exit(msg) do { perror(msg); \
                         exit(EXIT_FAILURE); \
@@ -89,10 +90,17 @@ main(int argc, char** argv)
         size_t datasz;
         Elf64_Ehdr ehdr;
         Elf64_Half e_type;
+        bool status;
+
         char* ei_class[ELFCLASSNUM] = {
                 "NONE",
                 "ELF32",
                 "ELF64"
+        };
+        char* ei_data[ELFDATANUM] = {
+                "Invalid data encoding",
+                "2's complement, little endian",
+                "2's complement, big endian"
         };
 
         read_file_into_mem("/bin/ls", (void**)&data, &datasz);
@@ -100,8 +108,16 @@ main(int argc, char** argv)
         if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
                 err_exit("* Not an ELFMAG");
 
-        if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64)
-                err_exit("* Not a valid ELFCLASS");
+        status = true;
+        if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64) {
+                status = false;
+                ehdr.e_ident[EI_CLASS] = ELFCLASSNONE;
+        }
+
+        if (ehdr.e_ident[EI_DATA] < ELFDATA2LSB || ehdr.e_ident[EI_CLASS] > ELFDATA2MSB) {
+                status = false;
+                ehdr.e_ident[EI_DATA] = ELFDATANONE;
+        }
 
         printf(
                 "ELF Header:\n"
@@ -112,7 +128,7 @@ main(int argc, char** argv)
         putchar('\n');
         printf(
                 "  Class:                             %s\n"
-                "  Data:                                \n"
+                "  Data:                              %s\n"
                 "  Version:                             \n"
                 "  OS/ABI:                              \n"
                 "  ABI Version:                         \n"
@@ -129,9 +145,11 @@ main(int argc, char** argv)
                 "  Size of section headers:             \n"
                 "  Number of section headers:           \n"
                 "  Section header string table index:   \n",
-                ei_class[ehdr.e_ident[EI_CLASS]]
+                ei_class[ehdr.e_ident[EI_CLASS]],
+                ei_data[ehdr.e_ident[EI_DATA]]
         );
 
+        free(data);
         return 0;
 }
 
