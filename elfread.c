@@ -14,15 +14,6 @@
  *
  */
 
- /*
-  *  NOTES:
-  *  #include <elf.h> just reading the source
-  *  the best way to learn is to read the fuckin structs make a program that reads in an elf
-  *  start off by reading in an Elf_Ehdr gotta know what kind of elf file it is before actually
-  *  trying to interpret the data past the magic ehdr->e_ident[EI_CLASS] can be either ELFCLASS64 or ELFCLASS32
-  *  depending on this everything thereon will be an Elf32_blah or an Elf64_blah
-  */
-
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdio.h>
@@ -88,22 +79,19 @@ main(int argc, char** argv)
                 err_exit("* Not an ELFMAG");
 
         status = true;
-        ehdr.e_type = ehdr.e_ident[EI_CLASS];
-        if (ehdr.e_type < ELFCLASS32 || ehdr.e_type > ELFCLASS64) {
+        if (ehdr.e_ident[EI_CLASS] < ELFCLASS32 || ehdr.e_ident[EI_CLASS] > ELFCLASS64) {
                 status = false;
-                ehdr.e_type = ELFCLASSNONE;
+                ehdr.e_ident[EI_CLASS] = ELFCLASSNONE;
         }
 
-        ehdr.e_machine = ehdr.e_ident[EI_DATA];
-        if (ehdr.e_machine < ELFDATA2LSB || ehdr.e_machine > ELFDATA2MSB) {
+        if (ehdr.e_ident[EI_DATA] < ELFDATA2LSB || ehdr.e_ident[EI_DATA] > ELFDATA2MSB) {
                 status = false;
-                ehdr.e_machine = ELFDATANONE;
+                ehdr.e_ident[EI_DATA] = ELFDATANONE;
         }
 
-        ehdr.e_version = ehdr.e_ident[EI_VERSION];
-        if (ehdr.e_version != EV_CURRENT) {
+        if (ehdr.e_ident[EI_VERSION] != EV_CURRENT) {
                 status = false;
-                ehdr.e_version = EV_NONE;
+                ehdr.e_ident[EI_VERSION] = EV_NONE;
         }
 
         if (ehdr.e_ident[EI_OSABI] >= ELFOSABI_SOLARIS && ehdr.e_ident[EI_OSABI] <= ELFOSABI_OPENBSD)
@@ -137,9 +125,9 @@ main(int argc, char** argv)
                 "  Size of section headers:             \n"
                 "  Number of section headers:           \n"
                 "  Section header string table index:   \n",
-                elf_class[ehdr.e_type],
-                elf_data[ehdr.e_machine],
-                ehdr.e_version, elf_version[ehdr.e_version],
+                elf_class[ehdr.e_ident[EI_CLASS]],
+                elf_data[ehdr.e_ident[EI_DATA]],
+                ehdr.e_version, elf_version[ehdr.e_ident[EI_VERSION]],
                 elf_osabi[ehdr.e_ident[EI_OSABI]],
                 ehdr.e_ident[EI_ABIVERSION]
         );
