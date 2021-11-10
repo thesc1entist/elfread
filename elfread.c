@@ -73,7 +73,8 @@ main(int argc, char** argv)
                     {"file-header",     no_argument, 0, 'h' },
                     {"program-headers", no_argument, 0, 'l' },
                     {"segments",        no_argument, 0, 'l' },
-                    {"help",            no_argument, 0, 'H' }
+                    {"help",            no_argument, 0, 'H' },
+                    { 0,                0,           0,  0  }
                 };
 
                 c = getopt_long(argc, argv, "hlH",
