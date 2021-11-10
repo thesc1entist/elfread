@@ -110,29 +110,39 @@ main(int argc, char** argv)
                 "  ABI Version:                         %d\n"
                 "  Type:                                %s\n"
                 "  Machine:                             %s\n"
-                "  Version:                             0x%.8x(%s)\n"
-                "  Entry point address:                 \n"
-                "  Start of program headers:            \n"
-                "  Start of section headers:            \n"
-                "  Flags:                               \n"
-                "  Size of this header:                 \n"
-                "  Size of program headers:             \n"
-                "  Number of program headers:           \n"
-                "  Size of section headers:             \n"
-                "  Number of section headers:           \n"
-                "  Section header string table index:   \n",
+                "  Version:                             0x%x (%s)\n"
+                "  Entry point address:                 0x%x\n"
+                "  Start of program headers:            %d (bytes into file)\n"
+                "  Start of section headers:            %d (bytes into file)\n"
+                "  Flags:                               0x%x\n"
+                "  Size of this header:                 %d (bytes)\n"
+                "  Size of program headers:             %d (bytes)\n"
+                "  Number of program headers:           %d\n"
+                "  Size of section headers:             %d (bytes)\n"
+                "  Number of section headers:           %d\n"
+                "  Section header string table index:   %d\n",
                 elf_class_id[elf_ei_class],
                 elf_data_id[elf_ei_data],
                 (int)ehdr.e_ident[EI_VERSION],
                 elf_osabi_id[elf_ei_osabi],
-                ehdr.e_ident[EI_ABIVERSION], // Further specifies the ABI version.
+                (int)ehdr.e_ident[EI_ABIVERSION], // Further specifies the ABI version.
                                              // Its interpretation depends on the target ABI.
                                              // Linux kernel (after at least 2.6) has no definition of it,
                                              // so it is ignored for statically-linked executables.
                                              // In that case, offset and size of EI_PAD are 8.
                 elf_e_type_id[elf_e_type],
                 ehdr.e_machine >= EM_NUM ? "special\n" : elf_e_machine_id[ehdr.e_machine],
-                ehdr.e_version, elf_e_version_id[elf_e_version]
+                ehdr.e_version, elf_e_version_id[elf_e_version],
+                ehdr.e_entry,
+                ehdr.e_phoff,
+                ehdr.e_shoff,
+                ehdr.e_flags,
+                ehdr.e_ehsize,
+                ehdr.e_phentsize,
+                ehdr.e_phnum,
+                ehdr.e_shentsize,
+                ehdr.e_shnum,
+                ehdr.e_shstrndx
         );
 
         free(data);
