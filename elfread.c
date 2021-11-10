@@ -13,16 +13,17 @@
  * ================================================================================================================
  *
  */
+#include <stdio.h>      /* for printf */
+#include <stdlib.h>     /* for exit */
+#include <inttypes.h>   /* for uint8 */ 
+#include <string.h>     /* memset */ 
+#include <errno.h> 
 
+#include <getopt.h>
+#include <elf.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <stdio.h>
-#include <inttypes.h> // for uint8
-#include <stdlib.h>
-#include <elf.h>
-#include <string.h> // memset
 #include <stdbool.h>
-#include <unistd.h> // for optarg
 
 #define         err_exit(msg) do { perror(msg); \
                         exit(EXIT_FAILURE); \
@@ -31,7 +32,7 @@
 #define         INDEX_ET_OS 6	
 #define         INDEX_ET_PROC 7
 
-static const* g_elf_args = "h";
+#define         ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 int
 read_file_into_mem(const char* filename, void** data_out, size_t* size_out);
@@ -40,22 +41,82 @@ write_mem_to_file(const char* filename, const void* data, size_t size);
 void
 display_elf_header(const Elf64_Ehdr* ehdr);
 
+const char* g_help_menu = {
+        "Usage: elfread <option(s)> elf-file(s)\n"
+        " Display information about the contents of ELF format files\n"
+        " Options are:\n"
+        "\n"
+        "-h --file - header             Display the ELF file header\n"
+        "-l --program - headers         Display the program headers\n"
+        "   --segments                  An alias for --program - headers\n"
+        "-H --help                      Display this information\n\n"
+        "                               the-scientist@rootstorm.com\n"
+        "                               spl0its-r-us security\n\n"
+};
+
+static int g_elf_file_header_flag = 0;
+static int g_elf_prog_header_flag = 0;
+static int g_elf_help_flag = 0;
+
 int
 main(int argc, char** argv)
 {
         void* data;
+        const char* binpath;
         size_t datasz;
         Elf64_Ehdr ehdr;
+        int c, option_index;
 
-        read_file_into_mem("/bin/ls", &data, &datasz);
+        while (1) {
+                option_index = 0;
+                static struct option long_options[] = {
+                    {"file-header",     no_argument, 0, 'h' },
+                    {"program-headers", no_argument, 0, 'l' },
+                    {"segments",        no_argument, 0, 'l' },
+                    {"help",            no_argument, 0, 'H' }
+                };
+
+                c = getopt_long(argc, argv, "hlH",
+                        long_options, &option_index);
+                if (c == -1) {
+                        g_elf_help_flag = optind == 1 ? optind : g_elf_help_flag;
+                        break;
+                }
+
+                switch (c) {
+                case 'h':
+                        g_elf_file_header_flag = 1;
+                        break;
+                case 'l':
+                        g_elf_prog_header_flag = 1;
+                        break;
+                case 'H':
+                case '?':
+                default:
+                        g_elf_help_flag = 1;
+                }
+        }
+
+        if (optind + 1 == argc)
+                binpath = argv[optind];
+        else
+                g_elf_help_flag = 1;
+
+        if (g_elf_help_flag)
+                err_exit(g_help_menu);
+
+        if (read_file_into_mem(binpath, &data, &datasz) == 0)
+                err_exit("* read_file_into_mem() error");
+
         if (datasz < sizeof(Elf64_Ehdr))
                 err_exit("* not an ordinary file");
 
         memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
-        if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
+        if (strncmp(ELFMAG, (const char*)&ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
                 err_exit("* Error: Not an ELF file - it has the wrong magic bytes at the start");
 
-        display_elf_header(&ehdr);
+        if (g_elf_file_header_flag)
+                display_elf_header(&ehdr);
 
         free(data);
         return 0;
@@ -100,7 +161,7 @@ display_elf_header(const Elf64_Ehdr* ehdr)
         if (elf_ei_osabi >= ELFOSABI_SOLARIS && elf_ei_osabi <= ELFOSABI_OPENBSD)
                 elf_ei_osabi -= 2;
         else if (elf_ei_osabi >= ELFOSABI_ARM_AEABI)
-                elf_ei_osabi = (sizeof(elf_osabi_id) / sizeof(elf_osabi_id[0])) - 1;
+                elf_ei_osabi = (ARRAY_SIZE(elf_osabi_id) - 1);
 
         elf_e_type = ehdr->e_type;
         if (elf_e_type > 5 && elf_e_type < ET_LOOS)
@@ -146,8 +207,8 @@ display_elf_header(const Elf64_Ehdr* ehdr)
                 elf_e_type_id[elf_e_type],
                 ehdr->e_machine >= EM_NUM ? "special\n" : elf_e_machine_id[ehdr->e_machine],
                 ehdr->e_version, elf_e_version_id[elf_e_version],
-                ehdr->e_entry, ehdr->e_phoff, ehdr->e_shoff, ehdr->e_flags, ehdr->e_ehsize,
-                ehdr->e_phentsize, ehdr->e_phnum, ehdr->e_shentsize, ehdr->e_shnum, ehdr->e_shstrndx
+                (int)ehdr->e_entry, (int)ehdr->e_phoff, (int)ehdr->e_shoff, (int)ehdr->e_flags, (int)ehdr->e_ehsize,
+                (int)ehdr->e_phentsize, (int)ehdr->e_phnum, (int)ehdr->e_shentsize, (int)ehdr->e_shnum, (int)ehdr->e_shstrndx
         );
 }
 
@@ -155,32 +216,46 @@ display_elf_header(const Elf64_Ehdr* ehdr)
 int
 read_file_into_mem(const char* filename, void** data_out, size_t* size_out)
 {
-        FILE* file = fopen(filename, "rb");
-        if (file == NULL)
-                return 0;
+        struct stat sb;
+        FILE* file;
+        long filesize;
+        void* mem;
 
-        fseek(file, 0, SEEK_END);
-        long filesize = ftell(file);
+        if ((stat(filename, &sb) == -1) || S_ISDIR(sb.st_mode))
+                goto err_ret;
+
+        file = fopen(filename, "rb");
+        if (file == NULL)
+                goto err_ret;
+
+        if (fseek(file, 0, SEEK_END) == -1)
+                goto err_close;
+
+        errno = 0;
+        filesize = ftell(file);
+        if (filesize == -1L || errno != 0)
+                goto err_close;
         rewind(file);
 
-        void* mem = malloc(filesize);
-        if (mem == NULL) {
-                fclose(file);
-                return 0;
-        }
+        mem = malloc(filesize);
+        if (mem == NULL)
+                goto err_close;
 
-        if (fread(mem, filesize, 1, file) != 1) {
-                printf("Failed to read data\n");
-                fclose(file);
-                free(mem);
-                return 0;
-        }
+        if (fread(mem, filesize, 1, file) != 1)
+                goto err_free;
 
         fclose(file);
 
         *data_out = mem;
         *size_out = filesize;
+
         return 1;
+err_free:
+        free(mem);
+err_close:
+        fclose(file);
+err_ret:
+        return 0;
 }
 
 
