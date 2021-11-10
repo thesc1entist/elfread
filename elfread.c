@@ -17,11 +17,12 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdio.h>
-#include <inttypes.h>
+#include <inttypes.h> // for uint8
 #include <stdlib.h>
 #include <elf.h>
 #include <string.h> // memset
 #include <stdbool.h>
+#include <unistd.h> // for optarg
 
 #define         err_exit(msg) do { perror(msg); \
                         exit(EXIT_FAILURE); \
@@ -30,20 +31,41 @@
 #define         INDEX_ET_OS 6	
 #define         INDEX_ET_PROC 7
 
+static const* g_elf_args = "h";
+
 int
 read_file_into_mem(const char* filename, void** data_out, size_t* size_out);
 int
 write_mem_to_file(const char* filename, const void* data, size_t size);
+void
+display_elf_header(const Elf64_Ehdr* ehdr);
 
 int
 main(int argc, char** argv)
 {
-        uint8_t* data;
-        const char* e_typeptr;
-        unsigned char elf_ei_osabi, elf_ei_data, elf_ei_class;
-        int magic_flag;
+        void* data;
         size_t datasz;
         Elf64_Ehdr ehdr;
+
+        read_file_into_mem("/bin/ls", &data, &datasz);
+        if (datasz < sizeof(Elf64_Ehdr))
+                err_exit("* not an ordinary file");
+
+        memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
+        if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
+                err_exit("* Error: Not an ELF file - it has the wrong magic bytes at the start");
+
+        display_elf_header(&ehdr);
+
+        free(data);
+        return 0;
+}
+
+
+void
+display_elf_header(const Elf64_Ehdr* ehdr)
+{
+        unsigned char elf_ei_osabi, elf_ei_data, elf_ei_class;
         Elf64_Half elf_e_type;
         Elf64_Word elf_e_version;
 
@@ -66,26 +88,21 @@ main(int argc, char** argv)
                 #include "./include/e_version_strings.h" 
         };
 
-        read_file_into_mem("/bin/ls", (void**)&data, &datasz);
-        memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
-        if (strncmp(ELFMAG, &ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
-                err_exit("* Not an ELFMAG");
-
-        elf_ei_class = ehdr.e_ident[EI_CLASS];
+        elf_ei_class = ehdr->e_ident[EI_CLASS];
         if (elf_ei_class < ELFCLASS32 || elf_ei_class > ELFCLASS64)
                 elf_ei_class = ELFCLASSNONE;
 
-        elf_ei_data = ehdr.e_ident[EI_DATA];
+        elf_ei_data = ehdr->e_ident[EI_DATA];
         if (elf_ei_data < ELFDATA2LSB || elf_ei_data > ELFDATA2MSB)
                 elf_ei_data = ELFDATANONE;
 
-        elf_ei_osabi = ehdr.e_ident[EI_OSABI];
+        elf_ei_osabi = ehdr->e_ident[EI_OSABI];
         if (elf_ei_osabi >= ELFOSABI_SOLARIS && elf_ei_osabi <= ELFOSABI_OPENBSD)
                 elf_ei_osabi -= 2;
         else if (elf_ei_osabi >= ELFOSABI_ARM_AEABI)
                 elf_ei_osabi = (sizeof(elf_osabi_id) / sizeof(elf_osabi_id[0])) - 1;
 
-        elf_e_type = ehdr.e_type;
+        elf_e_type = ehdr->e_type;
         if (elf_e_type > 5 && elf_e_type < ET_LOOS)
                 elf_e_type = ET_NONE;
         else if (elf_e_type >= ET_LOOS && elf_e_type <= ET_HIOS)
@@ -93,14 +110,14 @@ main(int argc, char** argv)
         else if (elf_e_type >= ET_HIOS && elf_e_type <= ET_LOPROC)
                 elf_e_type = INDEX_ET_PROC;
 
-        elf_e_version = ehdr.e_version != EV_CURRENT ? EV_NONE : ehdr.e_version;
+        elf_e_version = ehdr->e_version != EV_CURRENT ? EV_NONE : ehdr->e_version;
 
         printf(
                 "ELF Header:\n"
                 "  Magic:   "
         );
         for (int i = 0; i < EI_NIDENT; i++)
-                printf("%.2x ", ehdr.e_ident[i]);
+                printf("%.2x ", ehdr->e_ident[i]);
         putchar('\n');
         printf(
                 "  Class:                               %s\n"
@@ -123,31 +140,15 @@ main(int argc, char** argv)
                 "  Section header string table index:   %d\n",
                 elf_class_id[elf_ei_class],
                 elf_data_id[elf_ei_data],
-                (int)ehdr.e_ident[EI_VERSION],
+                (int)ehdr->e_ident[EI_VERSION],
                 elf_osabi_id[elf_ei_osabi],
-                (int)ehdr.e_ident[EI_ABIVERSION], // Further specifies the ABI version.
-                                             // Its interpretation depends on the target ABI.
-                                             // Linux kernel (after at least 2.6) has no definition of it,
-                                             // so it is ignored for statically-linked executables.
-                                             // In that case, offset and size of EI_PAD are 8.
+                (int)ehdr->e_ident[EI_ABIVERSION],
                 elf_e_type_id[elf_e_type],
-                ehdr.e_machine >= EM_NUM ? "special\n" : elf_e_machine_id[ehdr.e_machine],
-                ehdr.e_version, elf_e_version_id[elf_e_version],
-                ehdr.e_entry,
-                ehdr.e_phoff,
-                ehdr.e_shoff,
-                ehdr.e_flags,
-                ehdr.e_ehsize,
-                ehdr.e_phentsize,
-                ehdr.e_phnum,
-                ehdr.e_shentsize,
-                ehdr.e_shnum,
-                ehdr.e_shstrndx
+                ehdr->e_machine >= EM_NUM ? "special\n" : elf_e_machine_id[ehdr->e_machine],
+                ehdr->e_version, elf_e_version_id[elf_e_version],
+                ehdr->e_entry, ehdr->e_phoff, ehdr->e_shoff, ehdr->e_flags, ehdr->e_ehsize,
+                ehdr->e_phentsize, ehdr->e_phnum, ehdr->e_shentsize, ehdr->e_shnum, ehdr->e_shstrndx
         );
-
-        free(data);
-
-        return 0;
 }
 
 
