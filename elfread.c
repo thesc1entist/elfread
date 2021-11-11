@@ -65,6 +65,8 @@ main(int argc, char** argv)
         const char* binpath;
         size_t datasz;
         Elf64_Ehdr ehdr;
+        Elf64_Phdr* phdr[];
+
         int c, option_index;
 
         while (1) {
@@ -98,6 +100,7 @@ main(int argc, char** argv)
                 }
         }
 
+        printf("Main: %p\n", &main);
         if (optind + 1 == argc)
                 binpath = argv[optind];
         else
@@ -113,11 +116,17 @@ main(int argc, char** argv)
                 err_exit("* not an ordinary file");
 
         memcpy(&ehdr, data, sizeof(Elf64_Ehdr));
+        if (ehdr.e_phnum == PN_XNUM)
+                err_exit("* number of program headers exceeds elfreads current ability");
+
         if (strncmp(ELFMAG, (const char*)&ehdr.e_ident[EI_MAG0], SELFMAG) != 0)
                 err_exit("* Error: Not an ELF file - it has the wrong magic bytes at the start");
 
-        if (g_elf_file_header_flag)
-                display_elf_header(&ehdr);
+        for (int i = 0; i < )
+                memcpy(&ehdr, data + , )
+
+                if (g_elf_file_header_flag)
+                        display_elf_header(&ehdr);
 
         free(data);
         return 0;
