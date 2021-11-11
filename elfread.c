@@ -28,10 +28,8 @@
 #define         err_exit(msg) do { perror(msg); \
                         exit(EXIT_FAILURE); \
                         } while (0);
-
 #define         INDEX_ET_OS 6	
 #define         INDEX_ET_PROC 7
-
 #define         ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
 int
